@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive PDF Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.dark-mode {
+            background-color: #1e1e1e;
+            color: #f4f4f4;
+        }
+        #pdf-viewer {
+            border: 1px solid #ccc;
+            background: #fff;
+            padding: 10px;
+            height: 600px;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.3s;
+        }
+        #pdf-viewer.dark-mode {
+            background: #2a2a2a;
+        }
+        #controls {
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #toc {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            padding: 10px;
+            border: 1px solid #ccc;
+            z-index: 10;
+            display: none;
+        }
+        #toc.dark-mode {
+            background: #2a2a2a;
+            color: #f4f4f4;
+        }
+        #toggle-dark-mode {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <input type="file" id="file-input" accept="application/pdf"/>
+        <button id="prev-page">Previous Page</button>
+        <button id="next-page">Next Page</button>
+        <button id="zoom-in">Zoom In</button>
+        <button id="zoom-out">Zoom Out</button>
+        <button id="toggle-dark-mode">Toggle Dark Mode</button>
+        <span>Page: <span id="page-num">1</span> / <span id="page-count">0</span></span>
+        <button id="toggle-toc">Toggle TOC</button>
+    </div>
+    <div id="toc"></div>
+    <div id="pdf-viewer"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script>
+        const pdfViewer = document.getElementById('pdf-viewer');
+        const fileInput = document.getElementById('file-input');
+        const prevPageButton = document.getElementById('prev-page');
+        const nextPageButton = document.getElementById('next-page');
+        const zoomInButton = document.getElementById('zoom-in');
+        const zoomOutButton = document.getElementById('zoom-out');
+        const toggleDarkModeButton = document.getElementById('toggle-dark-mode');
+        const toggleTocButton = document.getElementById('toggle-toc');
+        const toc = document.getElementById('toc');
+        const pageNumSpan = document.getElementById('page-num');
+        const pageCountSpan = document.getElementById('page-count');
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let scale = 1.5;
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const fileReader = new FileReader();
+                fileReader.onload = function() {
+                    const typedarray = new Uint8Array(this.result);
+                    pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                        pdfDoc = pdf;
+                        pageCountSpan.textContent = pdf.numPages;
+                        renderPage(currentPage);
+                        generateTOC(); // Generate the TOC after loading the PDF
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
+            }
+        });
+
+        function renderPage(num) {
+            pdfDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({ scale });
+                pdfViewer.innerHTML = '';
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                pdfViewer.appendChild(canvas);
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                page.render(renderContext).promise.then(() => {
+                    pageNumSpan.textContent = currentPage;
+                });
+            });
+        }
+
+        prevPageButton.addEventListener('click', () => {
+            if (pdfDoc && currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+
+        nextPageButton.addEventListener('click', () => {
+            if (pdfDoc && currentPage < pdfDoc.numPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+
+        zoomInButton.addEventListener('click', () => {
+            scale += 0.1;
+            renderPage(currentPage);
+        });
+
+        zoomOutButton.addEventListener('click', () => {
+            scale = Math.max(scale - 0.1, 0.1);
+            renderPage(currentPage);
+        });
+
+        toggleDarkModeButton.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            pdfViewer.classList.toggle('dark-mode');
+            toc.classList.toggle('dark-mode');
+        });
+
+        toggleTocButton.addEventListener('click', () => {
+            toc.style.display = toc.style.display === 'none' ? 'block' : 'none';
+        });
+
+        function generateTOC() {
+            const headers = [
+                { title: 'Introduction', page: 1 },
+                { title: 'Chapter 1', page: 2 },
+                { title: 'Chapter 2', page: 3 },
+                { title: 'Conclusion', page: 4 }
+            ]; // Placeholder headers
+
+            toc.innerHTML = '<strong>Table of Contents</strong><br/>';
+            headers.forEach(header => {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.textContent = header.title;
+                link.onclick = () => {
+                    currentPage = header.page;
+                    renderPage(currentPage);
+                };
+                toc.appendChild(link);
+                toc.appendChild(document.createElement('br'));
+            });
+        }
+    </script>
+</body>
+</html>
